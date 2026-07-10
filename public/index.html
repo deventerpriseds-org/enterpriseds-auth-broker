@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>EnterpriseDS Auth Broker</title>
+  </head>
+  <body style="font-family: sans-serif; padding: 24px; color: #444;">
+    <p id="msg">Completing sign-in…</p>
+    <script>
+      // Central OAuth redirect broker.
+      // Google redirects here with ?code&state; `state` carries the originating
+      // app's origin (base64url JSON: {p:"google", o:"https://<app>"}). We forward
+      // the auth code back to that app, which exchanges it via its own API.
+      (function () {
+        var msg = document.getElementById("msg");
+        function fail(t) { msg.textContent = t; }
+
+        var params = new URLSearchParams(window.location.search);
+        var code = params.get("code");
+        var error = params.get("error");
+        var stateRaw = params.get("state");
+
+        if (!stateRaw) return fail("Missing state — cannot route this sign-in.");
+
+        var state;
+        try {
+          state = JSON.parse(atob(stateRaw.replace(/-/g, "+").replace(/_/g, "/")));
+        } catch (e) {
+          return fail("Invalid state.");
+        }
+        if (!state || !state.o) return fail("No origin in state.");
+
+        // Defense-in-depth: only forward to EnterpriseDS Static Web App origins,
+        // so a forged `state` can't turn this into an open redirect / code stealer.
+        // (Add custom-domain origins here if apps move off *.azurestaticapps.net.)
+        if (!/^https:\/\/[a-z0-9-]+\.\d+\.azurestaticapps\.net$/i.test(state.o)) {
+          return fail("Origin not allowed: " + state.o);
+        }
+
+        var dest = new URL(state.o + "/");
+        if (code) dest.searchParams.set("code", code);
+        if (error) dest.searchParams.set("error", error);
+        dest.searchParams.set("state", stateRaw);
+        window.location.replace(dest.toString());
+      })();
+    </script>
+  </body>
+</html>
