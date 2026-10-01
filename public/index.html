@@ -31,10 +31,25 @@
         }
         if (!state || !state.o) return fail("No origin in state.");
 
-        // Defense-in-depth: only forward to EnterpriseDS Static Web App origins,
-        // so a forged `state` can't turn this into an open redirect / code stealer.
-        // (Add custom-domain origins here if apps move off *.azurestaticapps.net.)
-        if (!/^https:\/\/[a-z0-9-]+\.\d+\.azurestaticapps\.net$/i.test(state.o)) {
+        // Defense-in-depth: only forward to EnterpriseDS-hosted origins, so a forged
+        // `state` can't turn this into an open redirect / code stealer.
+        //
+        // Two platforms, two branches, deliberately NOT merged into one looser pattern:
+        //   - Static Web Apps   <name>.<digits>.azurestaticapps.net      (unchanged)
+        //   - Container Apps    <app>.<unique>.<region>.azurecontainerapps.io
+        // The SWA branch is byte-identical to what shipped before; widening it was not
+        // asked for and a security control is not the place to generalise for elegance.
+        //
+        // The container branch requires at least two labels before the suffix, so a bare
+        // `azurecontainerapps.io` or a single-label host is refused. Both branches are
+        // fully anchored (^...$), which is what stops `https://evil.com/.azurestaticapps.net`
+        // and `https://x.azurecontainerapps.io.evil.com` -- neither `/` nor a trailing
+        // label is in the allowed character class.
+        //
+        // Custom domains: add an explicit branch per domain here. Never a wildcard.
+        // ALLOWLIST-REGEX -- test/origin-allowlist.test.mjs extracts the next line verbatim
+        var ALLOWED_ORIGIN = /^https:\/\/(?:[a-z0-9-]+\.\d+\.azurestaticapps\.net|[a-z0-9-]+(?:\.[a-z0-9-]+)+\.azurecontainerapps\.io)$/i;
+        if (!ALLOWED_ORIGIN.test(state.o)) {
           return fail("Origin not allowed: " + state.o);
         }
 
