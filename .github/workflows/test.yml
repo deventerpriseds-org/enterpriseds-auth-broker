@@ -1,0 +1,30 @@
+# WHAT:       Runs the origin-allowlist proof on every pull request and every push.
+# WHY:        `deploy.yml` only triggers on push to main, so a PR touching the forward
+#             allowlist got NO checks -- merging was the first time anything ran, on the
+#             Static Web App that backs Google sign-in for every app in the estate.
+#             Measured on PR #1: total_count 0 check runs.
+# SUPERSEDES: nothing -- deploy.yml keeps its own inline test step as the deploy gate.
+# SUPERSEDED-BY: nothing -- current
+# EVIDENCE:   test/origin-allowlist.test.mjs; PR #1 discussion.
+
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  allowlist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Quoted glob: node resolves it itself. Unquoted, the shell expands it and a
+      # bare `test/` argument is read as a MODULE path, which fails with
+      # MODULE_NOT_FOUND rather than running anything -- measured while writing this.
+      - name: Prove the origin allowlist
+        run: node --test 'test/*.test.mjs'
